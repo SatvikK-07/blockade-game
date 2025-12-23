@@ -6,7 +6,12 @@ const bgUrl =
 
 function Landing() {
   const [showOptions, setShowOptions] = useState(false)
+  const [showSingleChoices, setShowSingleChoices] = useState(false)
   const navigate = useNavigate()
+
+  const startSingle = (color) => {
+    navigate(`/play?mode=single&you=${color}`)
+  }
 
   return (
     <div className="landing">
@@ -14,7 +19,7 @@ function Landing() {
       <div
         className="bg-image"
         style={{
-          backgroundImage: `linear-gradient(180deg, rgba(5,5,7,0.78) 0%, rgba(5,5,7,0.90) 50%, rgba(5,5,7,0.95) 100%), url(${bgUrl})`,
+          backgroundImage: `linear-gradient(180deg, rgba(254, 251, 227, 0.92) 0%, rgba(254, 251, 227, 0.95) 50%, rgba(254, 251, 227, 0.98) 100%), url(${bgUrl})`,
         }}
       />
       
@@ -54,14 +59,29 @@ function Landing() {
               Play
             </button>
           ) : (
-            <div className="play-options">
-              <button className="secondary" onClick={() => navigate('/play')}>
-                Play with Friend
-              </button>
-              <button className="secondary disabled" disabled>
-                Single Player (coming soon)
-              </button>
-            </div>
+            <>
+              <div className="play-options">
+                <button className="secondary" onClick={() => navigate('/play')}>
+                  Play with Friend
+                </button>
+                <button className="secondary" onClick={() => setShowSingleChoices((v) => !v)}>
+                  Single Player
+                </button>
+              </div>
+              {showSingleChoices && (
+                <div className="single-options">
+                  <p className="single-label">Choose your side</p>
+                  <div className="single-buttons">
+                    <button className="secondary" onClick={() => startSingle('black')}>
+                      Play as Black
+                    </button>
+                    <button className="secondary" onClick={() => startSingle('white')}>
+                      Play as White
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -70,4 +90,3 @@ function Landing() {
 }
 
 export default Landing
-

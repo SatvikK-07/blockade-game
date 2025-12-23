@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const ROWS = 14
 const COLS = 17
-const CELL_SIZE = 48
+const CELL_SIZE = 40
 
 const startPositions = {
   black: [
@@ -186,6 +186,130 @@ function pathExists(player, positions, walls) {
   return false
 }
 
+function clonePositions(positions) {
+  return {
+    black: positions.black.map((p) => ({ ...p })),
+    white: positions.white.map((p) => ({ ...p })),
+  }
+}
+
+function shortestPathDistanceToGoal(player, positions, walls) {
+  const targets = startPositions[opponents[player]].map((p) => posKey(p.r, p.c))
+  let best = Infinity
+
+  const bfs = (start) => {
+    const visited = new Set()
+    const queue = [{ ...start, d: 0 }]
+    while (queue.length) {
+      const current = queue.shift()
+      const key = posKey(current.r, current.c)
+      if (visited.has(key)) continue
+      visited.add(key)
+      if (targets.includes(key)) return current.d
+      adjacencyForPath(current, walls).forEach((next) => {
+        const nKey = posKey(next.r, next.c)
+        if (!visited.has(nKey)) queue.push({ ...next, d: current.d + 1 })
+      })
+    }
+    return Infinity
+  }
+
+  positions[player].forEach((start) => {
+    const dist = bfs(start)
+    if (dist < best) best = dist
+  })
+
+  return best
+}
+
+function chooseAiMove(state, aiPlayer) {
+  let best = null
+  const wallSets = buildWallSets(state.walls)
+
+  state.positions[aiPlayer].forEach((pos, index) => {
+    const moves = computeLegalMoves(aiPlayer, index, state.positions, state.walls)
+    moves.forEach((dest) => {
+      const candidatePositions = clonePositions(state.positions)
+      candidatePositions[aiPlayer][index] = dest
+      const myDist = shortestPathDistanceToGoal(aiPlayer, candidatePositions, state.walls)
+      const oppDist = shortestPathDistanceToGoal(opponents[aiPlayer], candidatePositions, state.walls)
+      const centerBias =
+        -0.3 * (Math.abs(dest.r - ROWS / 2) + Math.abs(dest.c - COLS / 2))
+      const blockedPenalty = isStepBlocked(pos, dest, wallSets) ? 5 : 0
+      const score = (oppDist - myDist) + centerBias - blockedPenalty + Math.random() * 0.2
+      if (!best || score > best.score) {
+        best = { index, dest, score }
+      }
+    })
+  })
+
+  return best
+}
+
+function chooseAiWall(state, positionsAfterMove, aiPlayer) {
+  const baseOpponentDist = shortestPathDistanceToGoal(
+    opponents[aiPlayer],
+    positionsAfterMove,
+    state.walls,
+  )
+  const baseSelfDist = shortestPathDistanceToGoal(aiPlayer, positionsAfterMove, state.walls)
+  const opponentPositions = positionsAfterMove[opponents[aiPlayer]]
+
+  const evaluateCandidate = (orientation, row, col) => {
+    const check = canPlaceWall(orientation, row, col, aiPlayer, {
+      ...state,
+      positions: positionsAfterMove,
+    })
+    if (!check.ok) return null
+    const nextWalls = check.nextWalls
+    const oppDist = shortestPathDistanceToGoal(
+      opponents[aiPlayer],
+      positionsAfterMove,
+      nextWalls,
+    )
+    const selfDist = shortestPathDistanceToGoal(aiPlayer, positionsAfterMove, nextWalls)
+    const distGain = oppDist - baseOpponentDist
+    const selfPenalty = Math.max(0, selfDist - baseSelfDist)
+    const nearestOpponent = Math.min(
+      ...opponentPositions.map((p) => Math.abs(p.r - row) + Math.abs(p.c - col)),
+      12,
+    )
+    const proximityBonus = Math.max(0, 6 - nearestOpponent) * 0.4
+    const score = distGain * 2 - selfPenalty + proximityBonus + Math.random() * 0.1
+    return { score, nextWalls, orientation, row, col }
+  }
+
+  let best = null
+  const orientations = ['horizontal', 'vertical']
+  orientations.forEach((orientation) => {
+    if (state.inventory[aiPlayer][orientation] <= 0) return
+    const rowStart = orientation === 'horizontal' ? 1 : 0
+    const rowEnd = orientation === 'horizontal' ? ROWS - 1 : ROWS - 2
+    const colStart = orientation === 'horizontal' ? 0 : 1
+    const colEnd = orientation === 'horizontal' ? COLS - 2 : COLS - 1
+    for (let row = rowStart; row <= rowEnd; row += 1) {
+      for (let col = colStart; col <= colEnd; col += 1) {
+        const result = evaluateCandidate(orientation, row, col)
+        if (result && (!best || result.score > best.score)) {
+          best = result
+        }
+      }
+    }
+  })
+
+  if (!best) return null
+
+  const nextInventory = {
+    ...state.inventory,
+    [aiPlayer]: {
+      ...state.inventory[aiPlayer],
+      [best.orientation]: state.inventory[aiPlayer][best.orientation] - 1,
+    },
+  }
+
+  return { nextWalls: best.nextWalls, nextInventory, placement: best }
+}
+
 function wallWithinBounds(orientation, row, col) {
   if (orientation === 'horizontal') {
     return row >= 1 && row <= ROWS - 1 && col >= 0 && col <= COLS - 2
@@ -217,7 +341,7 @@ function canPlaceWall(orientation, row, col, player, state) {
   return { ok: true, nextWalls }
 }
 
-function Board() {
+function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
   const initialState = useMemo(
     () => ({
       positions: {
@@ -241,6 +365,15 @@ function Board() {
   const [moves, setMoves] = useState([])
   const [message, setMessage] = useState('')
   const [pendingOrientation, setPendingOrientation] = useState('horizontal')
+  const [aiThinking, setAiThinking] = useState(false)
+  const [boardScale, setBoardScale] = useState(1)
+
+  const isSingle = mode === 'single'
+  const isHumanTurn = !isSingle || state.turn === humanColor
+  const isAiTurn = isSingle && state.turn === aiColor
+
+  const boardBaseWidth = COLS * CELL_SIZE
+  const boardBaseHeight = ROWS * CELL_SIZE
 
   const occupied = useMemo(() => {
     const map = new Map()
@@ -251,6 +384,8 @@ function Board() {
 
   const cellClick = (r, c) => {
     if (state.winner) return
+    if (!isHumanTurn) return
+    if (aiThinking) return
     if (state.mode === 'placeWall') return
     const occupant = occupied.get(posKey(r, c))
     const isMoveTarget = moves.some((m) => m.r === r && m.c === c)
@@ -292,6 +427,22 @@ function Board() {
       return
     }
 
+    const remainingWalls =
+      state.inventory[selected.player].horizontal + state.inventory[selected.player].vertical
+    if (remainingWalls === 0) {
+      setState((prev) => ({
+        ...prev,
+        positions: nextPositions,
+        turn: opponents[selected.player],
+        mode: 'select',
+      }))
+      setSelected(null)
+      setMoves([])
+      setPendingOrientation('horizontal')
+      setMessage('No walls left to place. Turn passes to the opponent.')
+      return
+    }
+
     setState((prev) => ({
       ...prev,
       positions: nextPositions,
@@ -304,6 +455,8 @@ function Board() {
 
   const tryPlaceWall = (orientation, row, col) => {
     if (state.mode !== 'placeWall' || state.winner) return
+    if (!isHumanTurn) return
+    if (aiThinking) return
     const check = canPlaceWall(orientation, row, col, state.turn, state)
     if (!check.ok) {
       setMessage(check.reason)
@@ -335,6 +488,7 @@ function Board() {
     setMoves([])
     setMessage('')
     setPendingOrientation('horizontal')
+    setAiThinking(false)
   }
 
   const wallHotspots = () => {
@@ -357,15 +511,97 @@ function Board() {
     return spots
   }
 
+  useEffect(() => {
+    if (!isSingle) return
+    if (state.winner) return
+    if (!isAiTurn) return
+    if (aiThinking) return
+
+    setAiThinking(true)
+    setMessage('AI thinking...')
+    const timer = setTimeout(() => {
+      const moveChoice = chooseAiMove(state, aiColor)
+      const nextPositions = clonePositions(state.positions)
+      setSelected(null)
+      setMoves([])
+
+      if (!moveChoice) {
+        setState((prev) => ({
+          ...prev,
+          turn: opponents[aiColor],
+          mode: 'select',
+        }))
+        setMessage('AI passes its move. Your turn.')
+        setAiThinking(false)
+        return
+      }
+
+      nextPositions[aiColor][moveChoice.index] = { r: moveChoice.dest.r, c: moveChoice.dest.c }
+      const reachedGoal = startPositions[opponents[aiColor]].some(
+        (p) => p.r === moveChoice.dest.r && p.c === moveChoice.dest.c,
+      )
+
+      if (reachedGoal) {
+        setState((prev) => ({
+          ...prev,
+          positions: nextPositions,
+          winner: aiColor,
+        }))
+        setMessage('AI reached your start and wins.')
+        setAiThinking(false)
+        return
+      }
+
+      const wallDecision = chooseAiWall(state, nextPositions, aiColor)
+      const nextWalls = wallDecision ? wallDecision.nextWalls : state.walls
+      const nextInventory = wallDecision ? wallDecision.nextInventory : state.inventory
+
+      setState((prev) => ({
+        ...prev,
+        positions: nextPositions,
+        walls: nextWalls,
+        inventory: nextInventory,
+        turn: opponents[aiColor],
+        mode: 'select',
+      }))
+      setMessage(`AI moved${wallDecision ? ' and placed a wall' : ' and skipped wall placement'}. Your turn.`)
+      setAiThinking(false)
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [aiColor, isAiTurn, isSingle, state])
+
+  useEffect(() => {
+    const computeScale = () => {
+      if (typeof window === 'undefined') return
+      const padding = 48
+      const available = Math.max(320, window.innerWidth - padding)
+      const scale = Math.min(1, Math.max(0.5, available / (boardBaseWidth + 60)))
+      setBoardScale(scale)
+    }
+    computeScale()
+    window.addEventListener('resize', computeScale)
+    return () => window.removeEventListener('resize', computeScale)
+  }, [boardBaseWidth])
+
   const hotspots = wallHotspots()
   const wallSets = buildWallSets(state.walls)
 
   const cellSizePx = `${CELL_SIZE}px`
   const boardStyle = {
-    width: `${COLS * CELL_SIZE}px`,
-    height: `${ROWS * CELL_SIZE}px`,
+    width: `${boardBaseWidth}px`,
+    height: `${boardBaseHeight}px`,
     gridTemplateColumns: `repeat(${COLS}, ${cellSizePx})`,
     gridTemplateRows: `repeat(${ROWS}, ${cellSizePx})`,
+  }
+  const scaledBoardStyle = {
+    ...boardStyle,
+    transform: `scale(${boardScale})`,
+    transformOrigin: 'top left',
+  }
+  const boardWrapperStyle = {
+    width: `${boardBaseWidth * boardScale}px`,
+    height: `${boardBaseHeight * boardScale}px`,
   }
 
   return (
@@ -403,7 +639,8 @@ function Board() {
       </div>
 
       <div className="board-container">
-        <div className="board" style={boardStyle}>
+        <div className="board-wrapper" style={boardWrapperStyle}>
+          <div className="board" style={scaledBoardStyle}>
         {[...Array(ROWS)].map((_, r) =>
           [...Array(COLS)].map((__, c) => {
             const isStartBlack = startPositions.black.some((p) => p.r === r && p.c === c)
@@ -496,8 +733,9 @@ function Board() {
             onClick={() => cellClick(p.r, p.c)}
           />
         ))}
+          </div>
         </div>
-        
+
         <div className="wall-inventory">
           <div className="wall-count black-walls">
             <div className="wall-label">Black</div>
@@ -520,4 +758,3 @@ function Board() {
 }
 
 export default Board
-
