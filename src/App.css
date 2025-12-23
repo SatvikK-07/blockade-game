@@ -5,7 +5,7 @@
 .header {
   text-align: center;
   margin-bottom: 16px;
-  color: #f2f4ff;
+  color: #2b2418;
 }
 
 .header h1 {
@@ -14,11 +14,11 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   margin: 0;
-  background: linear-gradient(135deg, #f7f8ff, #d6dcff);
+  background: linear-gradient(135deg, #d3842f, #8f5a1a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+  text-shadow: 0 4px 12px rgba(228, 135, 62, 0.3);
 }
 
 .header .subtitle {
@@ -26,6 +26,6 @@
 }
 
 .subtitle {
-  color: #cfd6ff;
+  color: #5a4a2c;
   margin-top: 4px;
 }
