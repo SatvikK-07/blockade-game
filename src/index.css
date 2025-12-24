@@ -54,18 +54,22 @@ button:disabled {
 }
 
 .board-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 300px) 1fr;
-  gap: 16px;
-  align-items: start;
-  padding: 0 8px 32px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 36px;
+  padding: 12px 24px 32px;
+  flex-wrap: nowrap;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
 .board-container {
   display: flex;
-  gap: 16px;
+  gap: 36px;
   align-items: flex-start;
   flex-wrap: nowrap;
+  justify-content: center;
 }
 
 .board-wrapper {
@@ -78,8 +82,10 @@ button:disabled {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(254, 244, 205, 0.95));
   border: 1px solid #e0d3a3;
   border-radius: 16px;
-  padding: 20px;
+  padding: 18px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  width: 220px;
+  min-height: 460px;
 }
 
 .panel h2 {
@@ -449,16 +455,18 @@ button:disabled {
 
 @media (max-width: 1100px) {
   .board-layout {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 0 10px 28px;
+    flex-direction: column;
+    gap: 18px;
+    padding: 0 14px 28px;
   }
   .board-container {
     flex-direction: column;
     align-items: center;
+    gap: 16px;
   }
   .panel {
     width: 100%;
+    max-width: 480px;
   }
   .wall-inventory {
     flex-direction: row;
@@ -476,14 +484,22 @@ button:disabled {
     padding: 12px 8px;
   }
   .board-layout {
-    gap: 10px;
-    padding: 0 6px 20px;
+    gap: 12px;
+    padding: 0 8px 20px;
+    align-items: center;
+    flex-direction: column;
   }
   .board-container {
     gap: 12px;
+    flex-direction: column;
+    align-items: center;
   }
   .wall-count {
     max-width: 180px;
+  }
+  .panel {
+    max-width: 480px;
+    width: 100%;
   }
 }
 /* Landing page decorative graphics */

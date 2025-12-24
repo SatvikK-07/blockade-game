@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 
-const ROWS = 14
-const COLS = 17
-const CELL_SIZE = 40
+const ROWS = 11
+const COLS = 14
+const CELL_SIZE = 47
 
 const startPositions = {
   black: [
-    { r: 5, c: 4 },
-    { r: 8, c: 4 },
+    { r: 3, c: 3 },
+    { r: 7, c: 3 },
   ],
   white: [
-    { r: 5, c: 12 },
-    { r: 8, c: 12 },
+    { r: 3, c: 10 },
+    { r: 7, c: 10 },
   ],
 }
 
@@ -81,23 +81,31 @@ function computeLegalMoves(player, index, positions, walls) {
   const pos = positions[player][index]
   const moves = []
 
-  const orthDeltas = [
-    [-2, 0],
-    [2, 0],
-    [0, -2],
-    [0, 2],
+  const orthDirs = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
   ]
 
-  orthDeltas.forEach(([dr, dc]) => {
-    const mid = { r: pos.r + dr / 2, c: pos.c + dc / 2 }
-    const dest = { r: pos.r + dr, c: pos.c + dc }
-    if (!isWithinBoard(dest.r, dest.c)) return
-    if (!canMoveTo(dest, positions)) return
-    const step1 = { r: pos.r + dr / 2, c: pos.c + dc / 2 }
-    if (!isWithinBoard(step1.r, step1.c)) return
-    if (!pathClear(pos, step1, wallSets)) return
-    if (!pathClear(step1, dest, wallSets)) return
-    moves.push(dest)
+  orthDirs.forEach(([dr, dc]) => {
+    const lengths = [1, 2]
+    lengths.forEach((len) => {
+      const dest = { r: pos.r + dr * len, c: pos.c + dc * len }
+      if (!isWithinBoard(dest.r, dest.c)) return
+      if (!canMoveTo(dest, positions)) return
+      let ok = true
+      let prev = pos
+      for (let step = 1; step <= len; step += 1) {
+        const next = { r: pos.r + dr * step, c: pos.c + dc * step }
+        if (!pathClear(prev, next, wallSets)) {
+          ok = false
+          break
+        }
+        prev = next
+      }
+      if (ok) moves.push(dest)
+    })
   })
 
   const diagDeltas = [
@@ -113,10 +121,9 @@ function computeLegalMoves(player, index, positions, walls) {
     if (!canMoveTo(dest, positions)) return
     const stepA = { r: pos.r, c: pos.c + dc }
     const stepB = { r: pos.r + dr, c: pos.c }
-    if (!pathClear(pos, stepA, wallSets)) return
-    if (!pathClear(pos, stepB, wallSets)) return
-    if (!pathClear(stepA, dest, wallSets)) return
-    if (!pathClear(stepB, dest, wallSets)) return
+    const pathViaA = pathClear(pos, stepA, wallSets) && pathClear(stepA, dest, wallSets)
+    const pathViaB = pathClear(pos, stepB, wallSets) && pathClear(stepB, dest, wallSets)
+    if (!pathViaA && !pathViaB) return
     moves.push(dest)
   })
 
@@ -127,20 +134,17 @@ function adjacencyForPath(pos, walls) {
   // For connectivity checks; ignores occupied tokens.
   const wallSets = buildWallSets(walls)
   const moves = []
-  const orthSteps = [
-    [-2, 0],
-    [2, 0],
-    [0, -2],
-    [0, 2],
-  ]
 
-  orthSteps.forEach(([dr, dc]) => {
-    const mid = { r: pos.r + dr / 2, c: pos.c + dc / 2 }
+  const orth1 = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ]
+  orth1.forEach(([dr, dc]) => {
     const dest = { r: pos.r + dr, c: pos.c + dc }
     if (!isWithinBoard(dest.r, dest.c)) return
-    if (!isWithinBoard(mid.r, mid.c)) return
-    if (!pathClear(pos, mid, wallSets)) return
-    if (!pathClear(mid, dest, wallSets)) return
+    if (!pathClear(pos, dest, wallSets)) return
     moves.push(dest)
   })
 
@@ -156,10 +160,9 @@ function adjacencyForPath(pos, walls) {
     if (!isWithinBoard(dest.r, dest.c)) return
     const stepA = { r: pos.r, c: pos.c + dc }
     const stepB = { r: pos.r + dr, c: pos.c }
-    if (!pathClear(pos, stepA, wallSets)) return
-    if (!pathClear(pos, stepB, wallSets)) return
-    if (!pathClear(stepA, dest, wallSets)) return
-    if (!pathClear(stepB, dest, wallSets)) return
+    const pathViaA = pathClear(pos, stepA, wallSets) && pathClear(stepA, dest, wallSets)
+    const pathViaB = pathClear(pos, stepB, wallSets) && pathClear(stepB, dest, wallSets)
+    if (!pathViaA && !pathViaB) return
     moves.push(dest)
   })
 
@@ -320,6 +323,23 @@ function wallWithinBounds(orientation, row, col) {
   return false
 }
 
+function wallsCross(newWall, existingWall) {
+  if (newWall.orientation === existingWall.orientation) return false
+  const h = newWall.orientation === 'horizontal' ? newWall : existingWall
+  const v = newWall.orientation === 'vertical' ? newWall : existingWall
+  // Horizontal wall spans columns [c, c+2) at row h.row
+  // Vertical wall spans rows [r, r+2) at col v.col
+  // Allow touching at endpoints (T/L). Block only true crossings.
+  return h.col < v.col && v.col < h.col + 2 && v.row < h.row && h.row < v.row + 2
+}
+
+function wallSegments(wall) {
+  if (wall.orientation === 'horizontal') {
+    return [`h:${wall.row}:${wall.col}`, `h:${wall.row}:${wall.col + 1}`]
+  }
+  return [`v:${wall.row}:${wall.col}`, `v:${wall.row + 1}:${wall.col}`]
+}
+
 function canPlaceWall(orientation, row, col, player, state) {
   if (!wallWithinBounds(orientation, row, col)) return { ok: false, reason: 'Out of bounds' }
   const key = wallKey(orientation, row, col)
@@ -327,6 +347,26 @@ function canPlaceWall(orientation, row, col, player, state) {
   if (wallSets[orientation].has(key)) return { ok: false, reason: 'Wall already placed there' }
   if (state.inventory[player][orientation] <= 0)
     return { ok: false, reason: 'No walls of that type left' }
+  const newWall = { orientation, row, col }
+  const newSegments = wallSegments(newWall)
+  const overlaps =
+    state.walls.horizontal.some((w) => {
+      if (w.orientation === newWall.orientation && w.row === newWall.row && w.col === newWall.col) return true
+      if (w.orientation === newWall.orientation) {
+        const segs = wallSegments(w)
+        if (segs.some((s) => newSegments.includes(s))) return true
+      }
+      return wallsCross(newWall, { ...w })
+    }) ||
+    state.walls.vertical.some((w) => {
+      if (w.orientation === newWall.orientation && w.row === newWall.row && w.col === newWall.col) return true
+      if (w.orientation === newWall.orientation) {
+        const segs = wallSegments(w)
+        if (segs.some((s) => newSegments.includes(s))) return true
+      }
+      return wallsCross(newWall, { ...w })
+    })
+  if (overlaps) return { ok: false, reason: 'Wall overlaps an existing wall' }
 
   const nextWalls = {
     horizontal: [...state.walls.horizontal],
@@ -574,7 +614,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
   useEffect(() => {
     const computeScale = () => {
       if (typeof window === 'undefined') return
-      const padding = 48
+      const padding = 24
       const available = Math.max(320, window.innerWidth - padding)
       const scale = Math.min(1, Math.max(0.5, available / (boardBaseWidth + 60)))
       setBoardScale(scale)
@@ -631,11 +671,6 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
         {state.mode === 'placeWall' && <p className="hint">Select a spot on the board to place a wall.</p>}
         {message && <p className="message">{message}</p>}
         {state.winner && <p className="winner">{state.winner} wins!</p>}
-        <div className="legend">
-          <p>Click your token to see legal moves (2 orthogonal, 1 diagonal).</p>
-          <p>After moving, place one wall (orange = horizontal, blue = vertical).</p>
-          <p>Walls may not seal all paths to an opponent start space.</p>
-        </div>
       </div>
 
       <div className="board-container">
