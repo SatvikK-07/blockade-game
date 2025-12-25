@@ -48,6 +48,7 @@ function App() {
 
                         <h3>On your turn</h3>
                         <ul>
+                          <li><strong>Black moves first.</strong></li>
                           <li><strong>Move one token</strong>: up/down/left/right (1 or 2 spaces) or diagonally if one clear two-leg path is open. You can hop over other tokens as long as the landing cell is empty.</li>
                           <li><strong>Then place one wall</strong> of your chosen orientation (horizontal or vertical), unless you’re out of walls.</li>
                         </ul>

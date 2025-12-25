@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 const ROWS = 11
 const COLS = 14
-const CELL_SIZE = 47
+const CELL_SIZE = 52
 
 const startPositions = {
   black: [
@@ -407,6 +407,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
   const [pendingOrientation, setPendingOrientation] = useState('horizontal')
   const [aiThinking, setAiThinking] = useState(false)
   const [boardScale, setBoardScale] = useState(1)
+  const [celebrating, setCelebrating] = useState(false)
 
   const isSingle = mode === 'single'
   const isHumanTurn = !isSingle || state.turn === humanColor
@@ -461,6 +462,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
         positions: nextPositions,
         winner: selected.player,
       }))
+      setCelebrating(true)
       setSelected(null)
       setMoves([])
       setMessage(`${selected.player === 'black' ? 'Black' : 'White'} wins by reaching the start space!`)
@@ -529,6 +531,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
     setMessage('')
     setPendingOrientation('horizontal')
     setAiThinking(false)
+    setCelebrating(false)
   }
 
   const wallHotspots = () => {
@@ -587,6 +590,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
           positions: nextPositions,
           winner: aiColor,
         }))
+        setCelebrating(true)
         setMessage('AI reached your start and wins.')
         setAiThinking(false)
         return
@@ -644,147 +648,185 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
     height: `${boardBaseHeight * boardScale}px`,
   }
 
+  const renderBars = (player, orientation) => {
+    const count = state.inventory[player][orientation]
+    return [...Array(count)].map((_, idx) => (
+      <span
+        key={`${player}-${orientation}-${idx}`}
+        className={`supply-bar ${orientation} ${player}`}
+      />
+    ))
+  }
+
   return (
     <div className="board-layout">
-      <div className="panel">
-        <h2>Blockade</h2>
-        <div className="turn-line">
-          Turn: <span className={state.turn === 'black' ? 'black-text' : 'white-text'}>{state.turn}</span>
+      <div className="board-container">
+        <div className="wall-stack-column left">
+          <div className="wall-stack horizontal-stack black-stack">
+            {renderBars('black', 'horizontal')}
+          </div>
+          <div className="wall-stack vertical-stack black-stack">
+            {renderBars('black', 'vertical')}
+          </div>
         </div>
-        <div className="controls">
-          <button
-            className={pendingOrientation === 'horizontal' ? 'selected' : ''}
-            onClick={() => setPendingOrientation('horizontal')}
-            disabled={state.mode !== 'placeWall'}
-          >
-            Horizontal wall
-          </button>
-          <button
-            className={pendingOrientation === 'vertical' ? 'selected' : ''}
-            onClick={() => setPendingOrientation('vertical')}
-            disabled={state.mode !== 'placeWall'}
-          >
-            Vertical wall
-          </button>
-          <button onClick={resetGame}>Reset</button>
+
+        <div className="board-stack">
+          <div className="control-strip">
+            <div className="turn-chip">
+              Turn:{' '}
+              <span className={state.turn === 'black' ? 'black-text' : 'white-text'}>
+                {state.turn}
+              </span>
+            </div>
+            <div className="control-buttons">
+              <button
+                className={pendingOrientation === 'horizontal' ? 'selected' : ''}
+                onClick={() => setPendingOrientation('horizontal')}
+                disabled={state.mode !== 'placeWall'}
+              >
+                Horizontal
+              </button>
+              <button
+                className={pendingOrientation === 'vertical' ? 'selected' : ''}
+                onClick={() => setPendingOrientation('vertical')}
+                disabled={state.mode !== 'placeWall'}
+              >
+                Vertical
+              </button>
+              <button onClick={resetGame}>Reset</button>
+            </div>
+          </div>
+          {message && <p className="message">{message}</p>}
+
+          <div className="board-wrapper" style={boardWrapperStyle}>
+            {celebrating && state.winner && (
+              <div className="celebration-overlay">
+                <div className="celebration-card">
+                  <div className="celebration-title">{state.winner} wins!</div>
+                  <div className="celebration-sub">Game over — reset to play again.</div>
+                </div>
+              </div>
+            )}
+            <div className="board" style={scaledBoardStyle}>
+              {[...Array(ROWS)].map((_, r) =>
+                [...Array(COLS)].map((__, c) => {
+                  const isStartBlack = startPositions.black.some((p) => p.r === r && p.c === c)
+                  const isStartWhite = startPositions.white.some((p) => p.r === r && p.c === c)
+                  const isMove = moves.some((m) => m.r === r && m.c === c)
+                  return (
+                    <div
+                      key={posKey(r, c)}
+                      className={`cell ${isStartBlack ? 'start start-black' : ''} ${
+                        isStartWhite ? 'start start-white' : ''
+                      }`}
+                      onClick={() => cellClick(r, c)}
+                    >
+                      {isMove && <span className="move-dot" />}
+                    </div>
+                  )
+                }),
+              )}
+
+              {state.walls.horizontal.map((w) => (
+                <div
+                  key={wallKey('horizontal', w.row, w.col)}
+                  className="wall horizontal"
+                  style={{
+                    top: w.row * CELL_SIZE - 5,
+                    left: w.col * CELL_SIZE,
+                    width: CELL_SIZE * 2,
+                    height: 10,
+                    background: orientationColor.horizontal,
+                  }}
+                />
+              ))}
+              {state.walls.vertical.map((w) => (
+                <div
+                  key={wallKey('vertical', w.row, w.col)}
+                  className="wall vertical"
+                  style={{
+                    top: w.row * CELL_SIZE,
+                    left: w.col * CELL_SIZE - 5,
+                    width: 10,
+                    height: CELL_SIZE * 2,
+                    background: orientationColor.vertical,
+                  }}
+                />
+              ))}
+
+              {hotspots &&
+                hotspots.map((spot) => (
+                  <button
+                    key={wallKey(spot.orientation, spot.row, spot.col)}
+                    className={`wall-hotspot ${spot.orientation}`}
+                    style={
+                      spot.orientation === 'horizontal'
+                        ? {
+                            top: spot.row * CELL_SIZE - 5,
+                            left: spot.col * CELL_SIZE,
+                            width: CELL_SIZE * 2,
+                            height: 10,
+                          }
+                        : {
+                            top: spot.row * CELL_SIZE,
+                            left: spot.col * CELL_SIZE - 5,
+                            width: 10,
+                            height: CELL_SIZE * 2,
+                          }
+                    }
+                    onClick={() => tryPlaceWall(spot.orientation, spot.row, spot.col)}
+                  />
+                ))}
+
+              {state.positions.black.map((p, idx) => (
+                <div
+                  key={`b-${idx}`}
+                  className={`token black ${selected?.player === 'black' && selected?.index === idx ? 'active' : ''}`}
+                  style={{
+                    top: p.r * CELL_SIZE + CELL_SIZE / 2,
+                    left: p.c * CELL_SIZE + CELL_SIZE / 2,
+                  }}
+                  onClick={() => cellClick(p.r, p.c)}
+                />
+              ))}
+              {state.positions.white.map((p, idx) => (
+                <div
+                  key={`w-${idx}`}
+                  className={`token white ${selected?.player === 'white' && selected?.index === idx ? 'active' : ''}`}
+                  style={{
+                    top: p.r * CELL_SIZE + CELL_SIZE / 2,
+                    left: p.c * CELL_SIZE + CELL_SIZE / 2,
+                  }}
+                  onClick={() => cellClick(p.r, p.c)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
-        {state.mode === 'placeWall' && <p className="hint">Select a spot on the board to place a wall.</p>}
-        {message && <p className="message">{message}</p>}
-        {state.winner && <p className="winner">{state.winner} wins!</p>}
+
+        <div className="wall-stack-column right">
+          <div className="wall-stack horizontal-stack white-stack">
+            {renderBars('white', 'horizontal')}
+          </div>
+          <div className="wall-stack vertical-stack white-stack">
+            {renderBars('white', 'vertical')}
+          </div>
+        </div>
       </div>
 
-      <div className="board-container">
-        <div className="board-wrapper" style={boardWrapperStyle}>
-          <div className="board" style={scaledBoardStyle}>
-        {[...Array(ROWS)].map((_, r) =>
-          [...Array(COLS)].map((__, c) => {
-            const isStartBlack = startPositions.black.some((p) => p.r === r && p.c === c)
-            const isStartWhite = startPositions.white.some((p) => p.r === r && p.c === c)
-            const isMove = moves.some((m) => m.r === r && m.c === c)
-            return (
-              <div
-                key={posKey(r, c)}
-                className={`cell ${isStartBlack ? 'start start-black' : ''} ${
-                  isStartWhite ? 'start start-white' : ''
-                }`}
-                onClick={() => cellClick(r, c)}
-              >
-                {isMove && <span className="move-dot" />}
-              </div>
-            )
-          }),
-        )}
-
-        {state.walls.horizontal.map((w) => (
-          <div
-            key={wallKey('horizontal', w.row, w.col)}
-            className="wall horizontal"
-            style={{
-              top: w.row * CELL_SIZE - 5,
-              left: w.col * CELL_SIZE,
-              width: CELL_SIZE * 2,
-              height: 10,
-              background: orientationColor.horizontal,
-            }}
-          />
-        ))}
-        {state.walls.vertical.map((w) => (
-          <div
-            key={wallKey('vertical', w.row, w.col)}
-            className="wall vertical"
-            style={{
-              top: w.row * CELL_SIZE,
-              left: w.col * CELL_SIZE - 5,
-              width: 10,
-              height: CELL_SIZE * 2,
-              background: orientationColor.vertical,
-            }}
-          />
-        ))}
-
-        {hotspots &&
-          hotspots.map((spot) => (
-            <button
-              key={wallKey(spot.orientation, spot.row, spot.col)}
-              className={`wall-hotspot ${spot.orientation}`}
-              style={
-                spot.orientation === 'horizontal'
-                  ? {
-                      top: spot.row * CELL_SIZE - 5,
-                      left: spot.col * CELL_SIZE,
-                      width: CELL_SIZE * 2,
-                      height: 10,
-                    }
-                  : {
-                      top: spot.row * CELL_SIZE,
-                      left: spot.col * CELL_SIZE - 5,
-                      width: 10,
-                      height: CELL_SIZE * 2,
-                    }
-              }
-              onClick={() => tryPlaceWall(spot.orientation, spot.row, spot.col)}
-            />
-          ))}
-
-        {state.positions.black.map((p, idx) => (
-          <div
-            key={`b-${idx}`}
-            className={`token black ${selected?.player === 'black' && selected?.index === idx ? 'active' : ''}`}
-            style={{
-              top: p.r * CELL_SIZE + CELL_SIZE / 2,
-              left: p.c * CELL_SIZE + CELL_SIZE / 2,
-            }}
-            onClick={() => cellClick(p.r, p.c)}
-          />
-        ))}
-        {state.positions.white.map((p, idx) => (
-          <div
-            key={`w-${idx}`}
-            className={`token white ${selected?.player === 'white' && selected?.index === idx ? 'active' : ''}`}
-            style={{
-              top: p.r * CELL_SIZE + CELL_SIZE / 2,
-              left: p.c * CELL_SIZE + CELL_SIZE / 2,
-            }}
-            onClick={() => cellClick(p.r, p.c)}
-          />
-        ))}
+      <div className="wall-inventory-cards">
+        <div className="wall-count black-walls">
+          <div className="wall-label">Black</div>
+          <div className="wall-numbers">
+            <span className="wall-type">H: {state.inventory.black.horizontal}</span>
+            <span className="wall-type">V: {state.inventory.black.vertical}</span>
           </div>
         </div>
-
-        <div className="wall-inventory">
-          <div className="wall-count black-walls">
-            <div className="wall-label">Black</div>
-            <div className="wall-numbers">
-              <span className="wall-type">H: {state.inventory.black.horizontal}</span>
-              <span className="wall-type">V: {state.inventory.black.vertical}</span>
-            </div>
-          </div>
-          <div className="wall-count white-walls">
-            <div className="wall-label">White</div>
-            <div className="wall-numbers">
-              <span className="wall-type">H: {state.inventory.white.horizontal}</span>
-              <span className="wall-type">V: {state.inventory.white.vertical}</span>
-            </div>
+        <div className="wall-count white-walls">
+          <div className="wall-label">White</div>
+          <div className="wall-numbers">
+            <span className="wall-type">H: {state.inventory.white.horizontal}</span>
+            <span className="wall-type">V: {state.inventory.white.vertical}</span>
           </div>
         </div>
       </div>
