@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 const ROWS = 11
 const COLS = 14
-const CELL_SIZE = 52
+const CELL_SIZE = 47
 
 const startPositions = {
   black: [
@@ -403,7 +403,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
   const [state, setState] = useState(initialState)
   const [selected, setSelected] = useState(null) // { player, index }
   const [moves, setMoves] = useState([])
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState('Choose one of the black tokens to start.')
   const [pendingOrientation, setPendingOrientation] = useState('horizontal')
   const [aiThinking, setAiThinking] = useState(false)
   const [boardScale, setBoardScale] = useState(1)
@@ -528,7 +528,7 @@ function Board({ mode = 'pvp', humanColor = 'black', aiColor = 'white' }) {
     setState(initialState)
     setSelected(null)
     setMoves([])
-    setMessage('')
+    setMessage('Choose one of the black tokens to start.')
     setPendingOrientation('horizontal')
     setAiThinking(false)
     setCelebrating(false)

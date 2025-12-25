@@ -59,7 +59,7 @@ function Landing() {
               Play
             </button>
           ) : (
-            <>
+            <div className="play-stack">
               <div className="play-options">
                 <button className="secondary" onClick={() => navigate('/play')}>
                   Play with Friend
@@ -81,7 +81,7 @@ function Landing() {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>
