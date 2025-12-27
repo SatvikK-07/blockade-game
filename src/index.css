@@ -389,7 +389,7 @@ button:disabled {
 
 .board {
   position: relative;
-  background: linear-gradient(180deg, #f5d989, #f2c763);
+  background: #faf5a0;
   border-radius: 22px;
   box-shadow: inset 0 0 0 2px #d2a43d, 0 16px 36px rgba(0, 0, 0, 0.35);
   display: grid;
