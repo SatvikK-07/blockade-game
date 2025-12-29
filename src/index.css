@@ -70,6 +70,7 @@ button:disabled {
   align-items: flex-start;
   flex-wrap: nowrap;
   justify-content: center;
+  margin-top: -18px;
 }
 
 .board-wrapper {
