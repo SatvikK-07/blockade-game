@@ -391,7 +391,7 @@ button:disabled {
   position: relative;
   background: #faf5a0;
   border-radius: 22px;
-  box-shadow: inset 0 0 0 2px #d2a43d, 0 16px 36px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 2px #d2a43d;
   display: grid;
   overflow: hidden;
   flex-shrink: 0;
