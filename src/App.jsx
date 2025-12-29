@@ -26,7 +26,6 @@ function App() {
                 <div className="header-row">
                   <div className="title-block">
                     <h1>Blockade</h1>
-                    <p className="subtitle">Race to the opponent start while walling smartly.</p>
                   </div>
                   <button className="rules-btn" onClick={() => setShowRules(true)}>
                     Rules
