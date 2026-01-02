@@ -88,11 +88,19 @@ function computeLegalMoves(player, index, positions, walls) {
     [0, 1],
   ]
 
+  const opponentStarts = startPositions[opponents[player]]
+
   orthDirs.forEach(([dr, dc]) => {
-    const lengths = [1, 2]
+    const lengths = [2, 1] // prefer 2-step moves; allow 1-step only if winning
     lengths.forEach((len) => {
       const dest = { r: pos.r + dr * len, c: pos.c + dc * len }
       if (!isWithinBoard(dest.r, dest.c)) return
+      if (
+        len === 1 &&
+        !opponentStarts.some((p) => p.r === dest.r && p.c === dest.c)
+      ) {
+        return
+      }
       if (!canMoveTo(dest, positions)) return
       let ok = true
       let prev = pos
@@ -130,7 +138,7 @@ function computeLegalMoves(player, index, positions, walls) {
   return moves
 }
 
-function adjacencyForPath(pos, walls) {
+function adjacencyForPath(pos, walls, targets) {
   // For connectivity checks; ignores occupied tokens.
   const wallSets = buildWallSets(walls)
   const moves = []
@@ -141,11 +149,27 @@ function adjacencyForPath(pos, walls) {
     [0, -1],
     [0, 1],
   ]
+  const targetKeys = new Set(targets || [])
+
   orth1.forEach(([dr, dc]) => {
-    const dest = { r: pos.r + dr, c: pos.c + dc }
-    if (!isWithinBoard(dest.r, dest.c)) return
-    if (!pathClear(pos, dest, wallSets)) return
-    moves.push(dest)
+    // allow 2-step moves generally, and 1-step only if it lands on a target
+    const lengths = [2, 1]
+    lengths.forEach((len) => {
+      const dest = { r: pos.r + dr * len, c: pos.c + dc * len }
+      if (!isWithinBoard(dest.r, dest.c)) return
+      if (len === 1 && targetKeys.size > 0 && !targetKeys.has(posKey(dest.r, dest.c))) return
+      let ok = true
+      let prev = pos
+      for (let step = 1; step <= len; step += 1) {
+        const next = { r: pos.r + dr * step, c: pos.c + dc * step }
+        if (!pathClear(prev, next, wallSets)) {
+          ok = false
+          break
+        }
+        prev = next
+      }
+      if (ok) moves.push(dest)
+    })
   })
 
   const diagSteps = [
@@ -180,7 +204,7 @@ function pathExists(player, positions, walls) {
     if (visited.has(key)) continue
     visited.add(key)
     if (targets.includes(key)) return true
-    adjacencyForPath(current, walls).forEach((next) => {
+    adjacencyForPath(current, walls, targets).forEach((next) => {
       const nKey = posKey(next.r, next.c)
       if (!visited.has(nKey)) queue.push(next)
     })
@@ -209,7 +233,7 @@ function shortestPathDistanceToGoal(player, positions, walls) {
       if (visited.has(key)) continue
       visited.add(key)
       if (targets.includes(key)) return current.d
-      adjacencyForPath(current, walls).forEach((next) => {
+      adjacencyForPath(current, walls, targets).forEach((next) => {
         const nKey = posKey(next.r, next.c)
         if (!visited.has(nKey)) queue.push({ ...next, d: current.d + 1 })
       })
